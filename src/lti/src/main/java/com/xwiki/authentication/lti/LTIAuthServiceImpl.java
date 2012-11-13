@@ -63,13 +63,11 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             context.getWiki().createEmptyUser(wikiname, "edit", context);
             log.debug("LTI Create user: User " + user + " has been created");
             xwikiUser = "XWiki."+user;
+            
+            //TODO: passar-hi els paràmetres d'email, nom, etc..
         }
         
-        if (context.isMainWiki()) {
-            return new SimplePrincipal(xwikiUser);
-        } else {
-            return new SimplePrincipal(context.getMainXWiki() + ":" + xwikiUser);
-        }
+        return new SimplePrincipal(context.getDatabase() + ":" + xwikiUser);
     }
     
     
