@@ -29,18 +29,16 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             LTIEnvironment LTIEnvironment = new LTIEnvironment(request);
             if (LTIEnvironment.isAuthenticated()) {
                 String usernameLTI = LTIEnvironment.getUserName();
-                log.debug("usernameLTI="+usernameLTI);
                 if (usernameLTI.contains(":")) {
                     usernameLTI = usernameLTI.split(":")[1];
                 }
                 // get the group to assigna to the user.
                 String group = LTIEnvironment.getParameter("custom_groups");
-                System.out.println("GroupsLTI:"+group);
                 
-                return syncUser(usernameLTI, group, context);
+                return syncUser(usernameLTI, group, context, LTIEnvironment.isInstructor());
             } else {
                 Exception lastException = LTIEnvironment.getLastException();
-                log.debug("Error LTI authentication "+(lastException!=null?lastException.getMessage():""));
+                log.info("Error LTI authentication "+(lastException!=null?lastException.getMessage():""));
             }
             
         }catch(Exception ex) {
@@ -59,49 +57,53 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
      * @param context
      * @throws com.xpn.xwiki.XWikiException
      */
-    protected Principal syncUser(String user, String groupName, XWikiContext context) throws XWikiException {
+    protected Principal syncUser(String user, String groupName, XWikiContext context, boolean isInstructor) throws XWikiException {
         String xwikiUser = super.findUser(user, context);
+        String wikiNameShow = context.getWiki().getName();
+        log.info("["+wikiNameShow+"] usernameLTI="+user+", GroupsLTI:"+groupName);
+                
         if (xwikiUser == null) {
-            log.debug("LTI Create user: User " + user + " does not exist");
+            log.info("["+wikiNameShow+"] LTI Create user: User " + user + " does not exist");
             String wikiname = context.getWiki().clearName(user, true, true, context);
             context.getWiki().createEmptyUser(wikiname, "edit", context);
-            log.debug("LTI Create user: User " + user + " has been created");
+            log.info("["+wikiNameShow+"] LTI Create user: User " + user + " has been created");
             xwikiUser = "XWiki."+user;
-            //TODO: passar-hi els paràmetres d'email, nom, etc..
+            //TODO: save email, name, ... parameters
+            
+            // if the user is "instructor", assign admin rights except in speakapps wiki
+            if (isInstructor && !context.getWiki().getName().equalsIgnoreCase("speakapps")) {
+                try {
+                    this.addUserGroup(xwikiUser, user, "XWikiAdminGroup", context);
+                    log.info("["+wikiNameShow+"] add admin member " + xwikiUser);
+                }catch(Exception ex) {
+                    log.warn("["+wikiNameShow+"] Execption adding admin user "+ex);
+                }
+            }
         }
 
         // És un group però no és l'administrador
         if (groupName != null && !groupName.equalsIgnoreCase("XWikiAdminGroup")) {
-            System.out.println("add member " + xwikiUser);
-            log.info("add member " + xwikiUser);
-            Group group = Group.getGroup("XWiki", groupName, context);
-            if (group != null && !group.isMember(xwikiUser, context)) {
-                System.out.println("exist group " + groupName);
-                log.info("exist group " + groupName);
-                if (group.addUser(user, context)) {
-                    System.out.println("is add");
-                    try {
-                        group.save(context);
-                    } catch (Exception e) {
-                        log.warn(e);
-                    }
-                }
-            } else {
-                System.out.println("no exist group " + groupName);
-                log.info("no exist group " + groupName);
+            try {
+                this.addUserGroup(xwikiUser, user, groupName, context);
+                log.info("["+wikiNameShow+"] add a \""+groupName+"\" member " + xwikiUser);
+            }catch(Exception ex) {
+                log.warn("["+wikiNameShow+"] Execption adding user a \""+groupName+"\" group "+ex);
             }
         }
         
         return new SimplePrincipal(context.getDatabase() + ":" + xwikiUser);
     }
     
-    
-    //TODO: assignar usuaris a grups, útil per assignar estudiants a "aules"
-//2. Create group
-//                XWikiDocument xwikiDocument = new XWikiDocument(course_key, course_label);
-//                xwikiDocument.setLanguage(locale);
-//
-//                Group course = new Group(xwikiDocument, context); if
-//                (!course.isMember(user, context)) { course.addUser(user,
-//                context); }   
+    private boolean addUserGroup(String xwikiUser, String user, String groupName, XWikiContext context) throws XWikiException {
+        boolean isAdded = false;
+        Group group = Group.getGroup("XWiki", groupName, context);
+        if (group != null && !group.isMember(xwikiUser, context)) {
+            if (group.addUser(user, context)) {
+                group.save(context);
+                isAdded = true;
+            }
+        }
+        
+        return isAdded;
+    }
 }
