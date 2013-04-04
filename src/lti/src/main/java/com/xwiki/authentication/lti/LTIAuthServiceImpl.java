@@ -7,8 +7,6 @@ import com.xpn.xwiki.user.impl.xwiki.XWikiAuthServiceImpl;
 import com.xpn.xwiki.web.XWikiServletRequest;
 import edu.uoc.lti.LTIEnvironment;
 import java.security.Principal;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.securityfilter.realm.SimplePrincipal;
 import org.xwiki.component.annotation.Component;
 
@@ -19,30 +17,35 @@ import org.xwiki.component.annotation.Component;
 @Component
 public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
 
-    private static final Log log = LogFactory.getLog(LTIAuthServiceImpl.class);
+    // TODO: fer que el logger funcioni
+    //@Inject
+    //private Logger logger;
         
     @Override
     public Principal authenticate(String username, String password, XWikiContext context) throws XWikiException {
         XWikiServletRequest request = (XWikiServletRequest) context.getRequest();
 
-        try {
-            LTIEnvironment LTIEnvironment = new LTIEnvironment(request);
-            if (LTIEnvironment.isAuthenticated()) {
-                String usernameLTI = LTIEnvironment.getUserName();
-                if (usernameLTI.contains(":")) {
-                    usernameLTI = usernameLTI.split(":")[1];
-                }
-                // get the group to assigna to the user.
-                String group = LTIEnvironment.getParameter("custom_groups");
+        if (!context.getAction().equalsIgnoreCase("logout")) {
+            try {
                 
-                return syncUser(usernameLTI, group, context, LTIEnvironment.isInstructor());
-            } else {
-                Exception lastException = LTIEnvironment.getLastException();
-                log.info("Error LTI authentication "+(lastException!=null?lastException.getMessage():""));
+                LTIEnvironment LTIEnvironment = new LTIEnvironment(request);
+                if (LTIEnvironment.isAuthenticated()) {
+                    String usernameLTI = LTIEnvironment.getUserName();
+                    if (usernameLTI.contains(":")) {
+                        usernameLTI = usernameLTI.split(":")[1];
+                    }
+                    // get the group to assigna to the user.
+                    String group = LTIEnvironment.getParameter("custom_groups");
+
+                    return syncUser(usernameLTI, group, context, LTIEnvironment.isInstructor());
+                } else {
+                    Exception lastException = LTIEnvironment.getLastException();
+                    System.out.println("Error LTI authentication " + (lastException != null ? lastException.getMessage() : ""));
+                }
+                
+            } catch (Exception ex) {
+                System.out.println("Execption authentication " + ex);
             }
-            
-        }catch(Exception ex) {
-            log.warn("Execption authentication "+ex);
         }
         
         // Fallback on standard XWiki authentication
@@ -59,24 +62,23 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
      */
     protected Principal syncUser(String user, String groupName, XWikiContext context, boolean isInstructor) throws XWikiException {
         String xwikiUser = super.findUser(user, context);
-        String wikiNameShow = context.getWiki().getName();
-        log.info("["+wikiNameShow+"] usernameLTI="+user+", GroupsLTI:"+groupName);
+        String wikiNameShow = context.getDatabase();
+        System.out.println("["+wikiNameShow+"] usernameLTI="+user+", GroupsLTI:"+groupName);
                 
         if (xwikiUser == null) {
-            log.info("["+wikiNameShow+"] LTI Create user: User " + user + " does not exist");
+            System.out.println("["+wikiNameShow+"] LTI Create user: User " + user + " does not exist");
             String wikiname = context.getWiki().clearName(user, true, true, context);
             context.getWiki().createEmptyUser(wikiname, "edit", context);
-            log.info("["+wikiNameShow+"] LTI Create user: User " + user + " has been created");
+            System.out.println("["+wikiNameShow+"] LTI Create user: User " + user + " has been created");
             xwikiUser = "XWiki."+user;
             //TODO: save email, name, ... parameters
             
             // if the user is "instructor", assign admin rights except in speakapps wiki
             if (isInstructor && !context.getWiki().getName().equalsIgnoreCase("speakapps")) {
                 try {
-                    this.addUserGroup(xwikiUser, user, "XWikiAdminGroup", context);
-                    log.info("["+wikiNameShow+"] add admin member " + xwikiUser);
+                    this.addUserGroup(xwikiUser, user, "XWikiAdminGroup", context);                   
                 }catch(Exception ex) {
-                    log.warn("["+wikiNameShow+"] Execption adding admin user "+ex);
+                    System.out.println("["+wikiNameShow+"] Execption adding admin user "+ex);
                 }
             }
         }
@@ -85,9 +87,8 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
         if (groupName != null && !groupName.equalsIgnoreCase("XWikiAdminGroup")) {
             try {
                 this.addUserGroup(xwikiUser, user, groupName, context);
-                log.info("["+wikiNameShow+"] add a \""+groupName+"\" member " + xwikiUser);
             }catch(Exception ex) {
-                log.warn("["+wikiNameShow+"] Execption adding user a \""+groupName+"\" group "+ex);
+                System.out.println("["+wikiNameShow+"] Execption adding user a \""+groupName+"\" group "+ex);
             }
         }
         
@@ -101,9 +102,10 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             if (group.addUser(user, context)) {
                 group.save(context);
                 isAdded = true;
+                System.out.println("["+context.getDatabase()+"] add a \""+groupName+"\" member " + xwikiUser);
             }
         }
-        
+      
         return isAdded;
     }
 }
