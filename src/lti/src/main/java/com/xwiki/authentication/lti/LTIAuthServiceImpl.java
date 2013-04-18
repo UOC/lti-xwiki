@@ -1,14 +1,22 @@
 package com.xwiki.authentication.lti;
 
+import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.plugin.userdirectory.Group;
 import com.xpn.xwiki.user.impl.xwiki.XWikiAuthServiceImpl;
 import com.xpn.xwiki.web.XWikiServletRequest;
 import edu.uoc.lti.LTIEnvironment;
 import java.security.Principal;
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
 import org.securityfilter.realm.SimplePrincipal;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.model.reference.DocumentReference;
 
 /**
  *
@@ -76,7 +84,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             // if the user is "instructor", assign admin rights except in speakapps wiki
             if (isInstructor && !context.getWiki().getName().equalsIgnoreCase("speakapps")) {
                 try {
-                    this.addUserGroup(xwikiUser, user, "XWikiAdminGroup", context);                   
+                    this.addUserGroup(xwikiUser, "XWikiAdminGroup", context);                   
                 }catch(Exception ex) {
                     System.out.println("["+wikiNameShow+"] Execption adding admin user "+ex);
                 }
@@ -86,7 +94,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
         // És un group però no és l'administrador
         if (groupName != null && !groupName.equalsIgnoreCase("XWikiAdminGroup")) {
             try {
-                this.addUserGroup(xwikiUser, user, groupName, context);
+                this.addUserGroup(xwikiUser, groupName, context);
             }catch(Exception ex) {
                 System.out.println("["+wikiNameShow+"] Execption adding user a \""+groupName+"\" group "+ex);
             }
@@ -95,17 +103,37 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
         return new SimplePrincipal(context.getDatabase() + ":" + xwikiUser);
     }
     
-    private boolean addUserGroup(String xwikiUser, String user, String groupName, XWikiContext context) throws XWikiException {
-        boolean isAdded = false;
-        Group group = Group.getGroup("XWiki", groupName, context);
-        if (group != null && !group.isMember(xwikiUser, context)) {
-            if (group.addUser(user, context)) {
-                group.save(context);
-                isAdded = true;
-                System.out.println("["+context.getDatabase()+"] add a \""+groupName+"\" member " + xwikiUser);
+    private boolean addUserGroup(String xwikiUserName, String groupName, XWikiContext context) throws XWikiException {
+        try {
+            BaseClass groupClass = context.getWiki().getGroupClass(context);
+
+            // Get document representing group
+            DocumentReference groupDocumentReference = new DocumentReference(context.getDatabase(), XWiki.SYSTEM_SPACE, groupName);
+            XWikiDocument groupDoc = context.getWiki().getDocument(groupDocumentReference, context);
+
+            Group group = Group.getGroup("XWiki", groupName, context);
+            synchronized (groupDoc) {
+                if (group != null && !group.isMember(xwikiUserName, context)) {
+
+                    // Add a member object to document
+                    BaseObject memberObj = groupDoc.newXObject(groupClass.getDocumentReference(), context);
+//                    Map<String, String> map = new HashMap<String, String>();
+//                    map.put("member", xwikiUserName);
+//                    groupClass.fromMap(map, memberObj);
+                    memberObj.setStringValue("member", xwikiUserName);
+
+                    // Save modifications
+                    context.getWiki().saveDocument(groupDoc, context);
+                    
+                    System.out.println("["+context.getDatabase()+"] add a \""+groupName+"\" member " + xwikiUserName);
+                }
             }
+
+        } catch (Exception e) {
+            System.out.println(MessageFormat.format("Failed to add a user [{0}] to a group [{1}]", xwikiUserName, groupName));
+            return false;
         }
-      
-        return isAdded;
-    }
+        
+        return true;
+    }   
 }
