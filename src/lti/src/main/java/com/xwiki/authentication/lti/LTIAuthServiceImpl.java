@@ -5,15 +5,15 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.StringProperty;
 import com.xpn.xwiki.objects.classes.BaseClass;
-import com.xpn.xwiki.plugin.userdirectory.Group;
 import com.xpn.xwiki.user.impl.xwiki.XWikiAuthServiceImpl;
 import com.xpn.xwiki.web.XWikiServletRequest;
 import edu.uoc.lti.LTIEnvironment;
 import java.security.Principal;
 import java.text.MessageFormat;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Iterator;
+import java.util.List;
 import org.securityfilter.realm.SimplePrincipal;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
@@ -105,35 +105,40 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
     
     private boolean addUserGroup(String xwikiUserName, String groupName, XWikiContext context) throws XWikiException {
         try {
-            BaseClass groupClass = context.getWiki().getGroupClass(context);
+            if (groupName != null && !"".equals(groupName)) {
+                BaseClass groupClass = context.getWiki().getGroupClass(context);
 
-            // Get document representing group
-            DocumentReference groupDocumentReference = new DocumentReference(context.getDatabase(), XWiki.SYSTEM_SPACE, groupName);
-            XWikiDocument groupDoc = context.getWiki().getDocument(groupDocumentReference, context);
+                // Get document representing group
+                DocumentReference groupDocumentReference = new DocumentReference(context.getDatabase(), XWiki.SYSTEM_SPACE, groupName);
+                XWikiDocument groupDoc = context.getWiki().getDocument(groupDocumentReference, context);
+                synchronized (groupDoc) {
+                    boolean memberFound = false;
+                    Iterator<BaseObject> iMembers = groupDoc.getXObjects(groupClass.getDocumentReference()).iterator();
+                    while (iMembers.hasNext() && !memberFound) {
+                        StringProperty propertyMember = (StringProperty)iMembers.next().getField("member");
+                        if (propertyMember.getValue().equals(xwikiUserName)) {
+                            memberFound = true;
+                        }
+                    }
 
-            Group group = Group.getGroup("XWiki", groupName, context);
-            synchronized (groupDoc) {
-                if (group != null && !group.isMember(xwikiUserName, context)) {
+                    if (!memberFound) {
+                        // Add a member object to document
+                        BaseObject memberObj = groupDoc.newXObject(groupClass.getDocumentReference(), context);
+                        memberObj.setStringValue("member", xwikiUserName);
 
-                    // Add a member object to document
-                    BaseObject memberObj = groupDoc.newXObject(groupClass.getDocumentReference(), context);
-//                    Map<String, String> map = new HashMap<String, String>();
-//                    map.put("member", xwikiUserName);
-//                    groupClass.fromMap(map, memberObj);
-                    memberObj.setStringValue("member", xwikiUserName);
+                        // Save modifications
+                        context.getWiki().saveDocument(groupDoc, context);
 
-                    // Save modifications
-                    context.getWiki().saveDocument(groupDoc, context);
-                    
-                    System.out.println("["+context.getDatabase()+"] add a \""+groupName+"\" member " + xwikiUserName);
+                        System.out.println("[" + context.getDatabase() + "] add a \"" + groupName + "\" member " + xwikiUserName);
+                    }
                 }
             }
 
         } catch (Exception e) {
-            System.out.println(MessageFormat.format("Failed to add a user [{0}] to a group [{1}]", xwikiUserName, groupName));
+            System.out.println(MessageFormat.format("Failed to add a user [{0}] to a group [{1}] :"+e, xwikiUserName, groupName));
             return false;
         }
-        
+
         return true;
     }   
 }
