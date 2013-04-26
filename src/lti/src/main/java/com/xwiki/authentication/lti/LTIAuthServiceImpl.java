@@ -13,7 +13,6 @@ import edu.uoc.lti.LTIEnvironment;
 import java.security.Principal;
 import java.text.MessageFormat;
 import java.util.Iterator;
-import java.util.List;
 import org.securityfilter.realm.SimplePrincipal;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
