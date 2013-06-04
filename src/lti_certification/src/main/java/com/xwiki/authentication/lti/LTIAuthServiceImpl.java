@@ -31,13 +31,11 @@ import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.user.impl.xwiki.XWikiAuthServiceImpl;
 import com.xpn.xwiki.web.XWikiServletRequest;
 import edu.uoc.lti.LTIEnvironment;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.security.Principal;
-import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.securityfilter.realm.SimplePrincipal;
 import org.xwiki.component.annotation.Component;
@@ -64,85 +62,99 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
     @Override
     public Principal authenticate(String username, String password, XWikiContext context) throws XWikiException {
 
-        XWikiServletRequest request = (XWikiServletRequest) context.getRequest();
-
         if (!context.getAction().equalsIgnoreCase("logout")) {
             String wikiNameShow = context.getDatabase();
 
             try {
-                LTIEnvironment LTIEnvironment = new LTIEnvironment(request);
-
-                if (LTIEnvironment.isAuthenticated()) {
-                    // get role
-                    int userRole = GUEST;
-                    if (LTIEnvironment.isCourseAuthorized()) {
-                        userRole = STUDENT;
-                        if (LTIEnvironment.isInstructor()) {
-                            String rolesParam = LTIEnvironment.getParameter("roles");
-                            if (rolesParam != null && rolesParam.toLowerCase().contains("administration")) {
-                                userRole = ADMINISTRATOR;
-                            } else {
-                                userRole = INSTRUCTOR;
+                XWikiServletRequest request = (XWikiServletRequest) context.getRequest();
+                LTIEnvironment ltiEnvironment = new LTIEnvironment();
+                //if (true) { //(ltiEnvironment.is_lti_request(request)) {
+                LTIEnvironment ltiEnvironmentFromSession = (LTIEnvironment) request.getSession().getAttribute("LTI");
+                if (ltiEnvironment.is_lti_request(request) ||
+                   (!ltiEnvironment.is_lti_request(request) && ltiEnvironmentFromSession!=null && ltiEnvironmentFromSession.isAuthenticated())) {
+                    if (!ltiEnvironment.is_lti_request(request)) {
+                        ltiEnvironment = ltiEnvironmentFromSession;
+                    }
+                    else {
+                        ltiEnvironment.parseRequest(request);
+                    }
+                    if (ltiEnvironment.isAuthenticated()) {
+                        // get role
+                        int userRole = GUEST;
+                        if (ltiEnvironment.isCourseAuthorized()) {
+                            userRole = STUDENT;
+                            if (ltiEnvironment.isInstructor()) {
+                                String rolesParam = ltiEnvironment.getParameter("roles");
+                                if (rolesParam != null && rolesParam.toLowerCase().contains("administration")) {
+                                    userRole = ADMINISTRATOR;
+                                } else {
+                                    userRole = INSTRUCTOR;
+                                }
                             }
                         }
-                    }
 
-                    // get user name
-                    String userName = LTIEnvironment.getUserName();
-                    if (userName.contains(":")) {
-                        userName = userName.split(":")[1];
-                    }
-                    userName = userName.replaceAll("[\\.|:]", "_");
+                        // get user name
+                        String userName = ltiEnvironment.getUserName();
+                        userName = userName.replaceAll("[\\.|:]", "_");
 
-                    // get unique group name
-                    String groupName = LTIEnvironment.getResourceKey();
-                    if (userRole != ADMINISTRATOR) {
-                        groupName += "_" + ROLES_STR[userRole];
+                        // get unique group name
+                        String groupName = "";
+                        if (ltiEnvironment.getCourseName() != null) {
+                            groupName = ltiEnvironment.getCourseName(); // Treballar a nivell de curs i no de recurs .getResourceKey();
+                        } else {
+                            groupName = ltiEnvironment.getResourceKey();
+                        }
+                         
+                        if (userRole != ADMINISTRATOR) {
+                            groupName += "_" + ROLES_STR[userRole];
+                        } else {
+                            groupName = "XWikiAdminGroup";
+                        }
+                        groupName = groupName.replaceAll("[\\.|:]", "_");
+
+                        // get space name
+                        String spaceID = "";
+                        String spaceName = "";
+                        if (ltiEnvironment.getResourceKey() != null) {
+                            spaceID = ltiEnvironment.getResourceKey();
+                        }
+                        // No es poden dir igual dos recursos
+//                    if (ltiEnvironment.getCourseKey() != null) {
+//                        spaceID = (("".equals(spaceID)) ? "" : "-" + spaceID);
+//                    }
+                        spaceID = spaceID.replaceAll("[\\.|:]", "_");
+                        if (ltiEnvironment.getResourceTitle() != null) {
+                            spaceName = ltiEnvironment.getResourceTitle();
+                        } else {
+                            spaceName = ltiEnvironment.getResourceKey();
+                        }
+                        if (ltiEnvironment.getCourseTitle() != null) {
+                            spaceName = ltiEnvironment.getCourseTitle() + (("".equals(spaceName)) ? "" : "-" + spaceName);
+                        }
+
+                        logger.log(Level.INFO, "[{0}] user: {1}, group: {2}, spaceID: {3}, spaceName: {4}, role: {5}", new Object[]{wikiNameShow, userName, groupName, spaceID, spaceName, userRole});
+
+                        // synchronize user
+                        String xwikiUser = syncUser(userName, context, ltiEnvironment);
+
+                        // synchronize group
+                        String xwikiGroup = syncGroup(xwikiUser, groupName, context, ltiEnvironment);
+
+                        // synchronize space
+                        syncSpace(spaceID, spaceName, xwikiGroup, ROLES_RIGHTS[userRole], context);
+
+                        return new SimplePrincipal(context.getDatabase() + ":" + xwikiUser);
+
                     } else {
-                        groupName = "XWikiAdminGroup";
-                    }
-                    groupName = groupName.replaceAll("[\\.|:]", "_");
-
-                    // get space name
-                    String spaceName = "";
-                    if (LTIEnvironment.getResourceTitle() != null) {
-                        spaceName = LTIEnvironment.getCourseName();
-                    }
-                    if (LTIEnvironment.getCourseName() != null) {
-                        spaceName = LTIEnvironment.getCourseName() + (("".equals(spaceName)) ? "" : "-" + spaceName);
-                    }
-                    if ("".equals(spaceName)) {
-                        spaceName = LTIEnvironment.getResourceKey();
-                    }
-
-                    logger.finest("[" + wikiNameShow + "] user: " + userName
-                            + ", group: " + groupName
-                            + ", space: " + spaceName
-                            + ", role: " + userRole);
-
-                    // synchronize user
-                    String xwikiUser = syncUser(userName, context, LTIEnvironment);
-
-                    // synchronize group
-                    String xwikiGroup = syncGroup(xwikiUser, groupName, context, LTIEnvironment);
-
-                    // synchronize space
-                    syncSpace(spaceName, xwikiGroup, ROLES_RIGHTS[userRole], context);
-
-                    context.setURL(new URL("http://www.google.com"));
-                    return new SimplePrincipal(context.getDatabase() + ":" + xwikiUser);
-
-                } else {
-                    Exception lastException = LTIEnvironment.getLastException();
-                    if (lastException != null && lastException.getMessage() != null) {
-                        logger.warning("[" + wikiNameShow + "] Error LTI authentication " + lastException.getMessage());
+                        Exception lastException = ltiEnvironment.getLastException();
+                        if (lastException != null && lastException.getMessage() != null) {
+                            logger.log(Level.WARNING, "[{0}] Error LTI authentication {1}", new Object[]{wikiNameShow, lastException.getMessage()});
+                        }
                     }
                 }
 
-            } catch (MalformedURLException ex) {
-                logger.warning("URL authentication fail " + ex);
             } catch (Exception ex) {
-                logger.warning("[" + wikiNameShow + "] Execption authentication " + ex);
+                logger.log(Level.WARNING, "[{0}] Execption authentication {1}", new Object[]{wikiNameShow, ex});
             }
         }
         
@@ -172,10 +184,10 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             }
             
             if (context.getWiki().createUser(userName, userDetails, context) == 1) {
-                logger.info("["+wikiNameShow+"] Created XWiki-User '" + userName + "'");
+                logger.log(Level.INFO, "[{0}] Created XWiki-User ''{1}''", new Object[]{wikiNameShow, userName});
                 xwikiUser = "XWiki."+userName;
             } else {
-                logger.warning("["+wikiNameShow+"] Creation of user '" + userName + "' in XWiki failed!");
+                logger.log(Level.WARNING, "[{0}] Creation of user ''{1}'' in XWiki failed!", new Object[]{wikiNameShow, userName});
                 throw new XWikiException();
             }
         }
@@ -199,6 +211,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
                     if (groupDoc.isNew()) {
                         groupDoc.setSyntax(Syntax.XWIKI_2_0);
                         groupDoc.setContent("{{include document='XWiki.XWikiGroupSheet' /}}");
+                        logger.log(Level.INFO, "[{0}] create a group [{1}]", new Object[]{context.getDatabase(), groupName});
                     } else {
                         try {
                             Iterator<BaseObject> iMembers = groupDoc.getXObjects(groupClass.getDocumentReference()).iterator();
@@ -217,7 +230,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
                         BaseObject memberObj = groupDoc.newXObject(groupClass.getDocumentReference(), context);
                         memberObj.setStringValue("member", xwikiUser);
                         context.getWiki().saveDocument(groupDoc, context);
-                        logger.info("[" + context.getDatabase() + "] add a \"" + groupName + "\" member " + xwikiUser);
+                        logger.log(Level.INFO, "[{0}] add a \"{1}\" member {2}", new Object[]{context.getDatabase(), groupName, xwikiUser});
                     }
                     
                     xwikiGroup = "XWiki."+groupName;
@@ -227,7 +240,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
             }
 
         } catch (Exception e) {
-           logger.warning(MessageFormat.format("Failed to add a user [{0}] to a group [{1}] :"+e, xwikiUser, groupName));
+           logger.log(Level.WARNING, "Failed to add a user [{0}] to a group [{1}] :", new Object[]{xwikiUser, groupName,e});
            throw new XWikiException();
         }
         
@@ -235,18 +248,21 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
     }
 
     
-    private synchronized void syncSpace(String spaceName, String groupName, String rightLevel, XWikiContext context) throws XWikiException {
-        DocumentReference spaceDocumentReference = new DocumentReference(context.getDatabase(), spaceName, "WebHome");
+    private synchronized void syncSpace(String spaceID, String spaceName, String groupName, String rightLevel, XWikiContext context) throws XWikiException {
+        DocumentReference spaceDocumentReference = new DocumentReference(context.getDatabase(), spaceID, "WebHome");
         XWikiDocument spaceDoc = context.getWiki().getDocument(spaceDocumentReference, context);
         synchronized (spaceDoc) {
             // Get the space preferences page, where space level rights are saved.
             BaseClass globalRightsClass = context.getWiki().getGlobalRightsClass(context);
-            DocumentReference spacePrefsRef = new DocumentReference(context.getDatabase(), spaceName, "WebPreferences");
+            DocumentReference spacePrefsRef = new DocumentReference(context.getDatabase(), spaceID, "WebPreferences");
             XWikiDocument spacePrefs = context.getWiki().getDocument(spacePrefsRef, context);
             synchronized (spacePrefs) {
                 if (spaceDoc.isNew()) {
+                    DocumentReference titleClassRef = new DocumentReference(context.getDatabase(), "LTI", "TitleClass");
+                    BaseObject newTitle = spaceDoc.newXObject(titleClassRef, context);
+                    newTitle.set("title", spaceName, context);
                     context.getWiki().saveDocument(spaceDoc, context);
-                    logger.info("Create space: " + spaceName);
+                    logger.log(Level.INFO, "[{0}] Create space: {1}, title: {2}", new Object[]{context.getDatabase(),spaceID, spaceName});
                 }
             
                 // Get the XWikiGlobalRights from the space preferences page.
@@ -269,14 +285,8 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
                     newRights.set("groups", groupName, context);
                     newRights.set("levels", rightLevel, context);
                     newRights.set("allow", 1, context);
-                    /*if (rightLevel.equalsIgnoreCase("edit") || rightLevel.equalsIgnoreCase("admin") ) {
-                        BaseObject newViewRights = spacePrefs.newXObject(globalRightsClass.getDocumentReference(), context);
-                        newRights.set("groups", groupName, context);
-                        newRights.set("levels", rightLevel, context);
-                        newRights.set("allow", 1, context);
-                    }*/
                     context.getWiki().saveDocument(spacePrefs, context);
-                    logger.info("Space group righs udate: " + spaceName + "[" + groupName + ", " + rightLevel + "]");
+                    logger.log(Level.INFO, "[{0}] Space group righs udate: {1} [{2}] [{3}]", new Object[]{context.getDatabase(), spaceID, groupName, rightLevel});
                 }
             }
         }
