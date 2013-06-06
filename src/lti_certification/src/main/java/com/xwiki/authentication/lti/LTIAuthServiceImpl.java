@@ -31,6 +31,7 @@ import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.user.impl.xwiki.XWikiAuthServiceImpl;
 import com.xpn.xwiki.web.XWikiServletRequest;
 import edu.uoc.lti.LTIEnvironment;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -54,9 +55,12 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
     private static final int STUDENT = 2;
     private static final int GUEST = 3;
     
-    private static final String [] ROLES_STR = {"XWikiAdminGroup", "Instructor", "Student" , "Guest"};
+    private static final String [] ROLES_STR    = {"XWikiAdminGroup", "Instructor", "Student" , "Guest"};
     private static final String [] ROLES_RIGHTS = {"admin,edit,view,comment,delete,undelete,register,programming", "admin,edit,view,comment,delete,undelete", "edit,view,comment" , "view"};
 
+    private static final String LTI_REDIRECT  = "ltiredirect";
+    private static final String LTI_ERROR_MSG = "ltimessage";
+    
     private static final Logger logger = Logger.getLogger(LTIAuthServiceImpl.class.getName());
         
     @Override
@@ -64,10 +68,11 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
 
         if (!context.getAction().equalsIgnoreCase("logout")) {
             String wikiNameShow = context.getDatabase();
-
-            try {
-                XWikiServletRequest request = (XWikiServletRequest) context.getRequest();
-                LTIEnvironment ltiEnvironment = new LTIEnvironment();
+            
+            String returnURLLTI = null;            
+            XWikiServletRequest request = (XWikiServletRequest) context.getRequest();
+            LTIEnvironment ltiEnvironment = new LTIEnvironment();
+            try {    
                 //if (true) { //(ltiEnvironment.is_lti_request(request)) {
                 LTIEnvironment ltiEnvironmentFromSession = (LTIEnvironment) request.getSession().getAttribute("LTI");
                 if (ltiEnvironment.is_lti_request(request) ||
@@ -150,14 +155,27 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
                         if (lastException != null && lastException.getMessage() != null) {
                             logger.log(Level.WARNING, "[{0}] Error LTI authentication {1}", new Object[]{wikiNameShow, lastException.getMessage()});
                         }
+                        returnURLLTI = ltiEnvironment.getParameter("launch_presentation_return_url");
                     }
+                } else {
+                    returnURLLTI = request.get("launch_presentation_return_url");
                 }
 
             } catch (Exception ex) {
                 logger.log(Level.WARNING, "[{0}] Execption authentication {1}", new Object[]{wikiNameShow, ex});
+                returnURLLTI = request.get("launch_presentation_return_url");
+            }
+            
+            if (returnURLLTI != null) {
+                logger.log(Level.INFO, "[{0}] LTI redirection {1}", new Object[]{wikiNameShow, returnURLLTI});
+                try {
+                    context.getResponse().sendRedirect(returnURLLTI);
+                    context.setFinished(true);
+                } catch (IOException ex1) {
+                }
             }
         }
-        
+                
         // Fallback on standard XWiki authentication
         return super.authenticate(username, password, context);
     }
