@@ -1,7 +1,7 @@
 lti-xwiki
 =========
 
-tep-by-Step Guide
+# Step-by-Step Guide
 
 
 * Compile the XWiki LTI Component ./src/lti_certification/ (Maven project)
@@ -20,17 +20,16 @@ tep-by-Step Guide
 
 * Enable LTI authentication management: editing ./WEB-INF/xwiki.cfg
 
-	#-# LTI authentication management
-	xwiki.authentication.authclass=com.xwiki.authentication.lti.LTIAuthServiceImpl
+	> #-# LTI authentication management
+	> xwiki.authentication.authclass=com.xwiki.authentication.lti.LTIAuthServiceImpl
 
 * Create a directory called /home/campus/configHome/lti
 
 * Edit a new file called authorizedConsumersKey.cfg inside the path /home/campus/configHome/lti
 
-	#This is a configuration to be readed by providers to authorize the consumer key and gets the secret
-	#consumer_key."name_consumer".enabled=1
-	#consumer_key."name_consumer".secret=secret
-	#Definition of consumer key "uoc.edu"
+	> #This is a configuration to be readed by providers to authorize the consumer key and gets the secret
+	> #consumer_key."name_consumer".enabled=1
+	> #consumer_key."name_consumer".secret=secret
 
 * Deploy XWiki WAR
 
