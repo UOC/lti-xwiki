@@ -20,16 +20,16 @@ lti-xwiki
 
 * Enable LTI authentication management: editing ./WEB-INF/xwiki.cfg
 
-	> #-# LTI authentication management
+	> \#\-\# LTI authentication management
 	> xwiki.authentication.authclass=com.xwiki.authentication.lti.LTIAuthServiceImpl
 
 * Create a directory called /home/campus/configHome/lti
 
 * Edit a new file called authorizedConsumersKey.cfg inside the path /home/campus/configHome/lti
 
-	> #This is a configuration to be readed by providers to authorize the consumer key and gets the secret
-	> #consumer_key."name_consumer".enabled=1
-	> #consumer_key."name_consumer".secret=secret
+	> \#This is a configuration to be readed by providers to authorize the consumer key and gets the secret
+	> \#consumer_key."name_consumer".enabled=1
+	> \#consumer_key."name_consumer".secret=secret
 
 * Deploy XWiki WAR
 
