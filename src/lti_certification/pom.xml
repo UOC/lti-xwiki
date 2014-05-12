@@ -26,8 +26,8 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>edu.uoc.xwiki</groupId>
   <artifactId>authentication-lti</artifactId>
-  <version>1.4.0</version>
-  <description>XWiki  LTI Component</description>
+  <version>1.4.1</version>
+  <description>XWiki LTI Component</description>
   <name>authentication-lti-certification</name>
   <properties>
     <commons.version>1.0</commons.version>

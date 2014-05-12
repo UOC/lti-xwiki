@@ -194,7 +194,7 @@ public class LTIAuthServiceImpl extends XWikiAuthServiceImpl {
         
         if (xwikiUser == null) {
             HashMap<String, Object> userDetails = new HashMap<String, Object>();
-            if (lti.getEmail() != null) {
+            if (lti.getFullName() != null) {
                 userDetails.put("first_name", lti.getFullName());
             }
             if (lti.getEmail() != null) {
