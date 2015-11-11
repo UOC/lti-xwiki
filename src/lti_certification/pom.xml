@@ -26,7 +26,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>edu.uoc.xwiki</groupId>
   <artifactId>authentication-lti</artifactId>
-  <version>1.4.1</version>
+  <version>1.4.2</version>
   <description>XWiki LTI Component</description>
   <name>authentication-lti-certification</name>
   <properties>
@@ -38,8 +38,12 @@
       <url>http://nexus.xwiki.org/nexus/content/groups/public</url>
     </repository>
     <repository>
-        <id>uoc central</id>
-        <url>http://te.artifactory.uoc.es/artifactory/repo</url>
+        <id>lti-xwiki-mvn-repo</id>
+        <url>https://raw.github.com/UOC/lti-xwiki/mvn-repo/</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
     </repository>
   </repositories>
   <build>
@@ -62,8 +66,8 @@
       <version>4.5.3</version>
     </dependency>
     <dependency>
-      <groupId>org.xwiki.platform.model</groupId>
-      <artifactId>xwiki-platform-model</artifactId>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-oldcore</artifactId>
       <version>4.5.3</version>
     </dependency>
     <dependency>
@@ -102,7 +106,7 @@
     <dependency>
       <groupId>edu.uoc</groupId>
       <artifactId>lti</artifactId>
-      <version>1.0.2</version>
+      <version>1.0.3</version>
       <type>jar</type>
     </dependency>
     <dependency>

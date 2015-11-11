@@ -12,9 +12,9 @@ lti-xwiki
 
 /WEB-INF/lib/ path
 
-* Include all JAR dependencies from ./lib in the same path (/WEB-INF/lib/)
+* Include all JAR dependencies from ./lib in the same path (/WEB-INF/lib/). You can download from repository https://github.com/UOC/lti-xwiki/tree/mvn-repo
       - JavaUtils-1.1.2.jar
-      - lti-1.0.2.jar
+      - lti-1.0.3.jar
       - oauth-20100527.jar
       - oauth-provider-20100527.jar
 
@@ -24,16 +24,17 @@ lti-xwiki
 
 	> xwiki.authentication.authclass=com.xwiki.authentication.lti.LTIAuthServiceImpl
 
-* Create a directory called /home/campus/configHome/lti
+* Copy the file src/lti_certification/src/main/resources/authorizedConsumersKey.properties to  your Xwiki installation into folder WEB-INF
 
-* Edit a new file called authorizedConsumersKey.cfg inside the path /home/campus/configHome/lti
+* Edit a new file called authorizedConsumersKey.properties This is a configuration to be read by XWiki provider to authorize the consumer key and gets the secret
+    
+    	consumer_key."name_consumer".enabled=1
+    	consumer_key."name_consumer".secret=secret
+    	consumer_key."name_consumer".callBackUrl=
+    	consumer_key."name_consumer".fieldSessionId=token
 
-	> \#This is a configuration to be readed by providers to authorize the consumer key and gets the secret
+	The file has configured a consumer key sample and secret as 12345, change it
 
-	> \#consumer_key."name_consumer".enabled=1
-
-	> \#consumer_key."name_consumer".secret=secret
-
-* Deploy XWiki WAR
+* Restart your Tomcat or servlet container
 
 
