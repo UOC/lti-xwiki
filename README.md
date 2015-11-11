@@ -8,9 +8,7 @@ lti-xwiki
 
 * Download XWiki [XWiki](http://xwiki.org/ "Xwiki") WAR
 
-* Include the XWiki LTI component (JAR) ./src/lti_certification/target/authentication-lti-X.Y.Z.jar to XWiki WAR in 
-
-/WEB-INF/lib/ path
+* Include the XWiki LTI component (JAR) ./src/lti_certification/target/authentication-lti-X.Y.Z.jar to XWiki WAR in /WEB-INF/lib/ path. You can download compiled one from https://github.com/UOC/lti-xwiki/tree/mvn-repo/edu/uoc/xwiki 
 
 * Include all JAR dependencies from ./lib in the same path (/WEB-INF/lib/). You can download from repository https://github.com/UOC/lti-xwiki/tree/mvn-repo
       - JavaUtils-1.1.2.jar
